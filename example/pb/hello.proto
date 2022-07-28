@@ -1,0 +1,17 @@
+syntax = "proto3";
+package pb;
+
+option go_package = "github.com/pinealctx/ant/example/pb";
+
+import "google/protobuf/empty.proto";
+
+message Hello {
+  string halo = 1;
+}
+
+service Example {
+  rpc Echo(Hello) returns (Hello);
+  rpc Proc(Hello) returns(google.protobuf.Empty);
+  rpc Get(google.protobuf.Empty) returns(Hello);
+  rpc Touch(google.protobuf.Empty) returns(google.protobuf.Empty);
+}

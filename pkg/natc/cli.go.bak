@@ -1,0 +1,15 @@
+package natc
+
+import "github.com/nats-io/nats.go"
+
+type NatCli struct {
+	c *nats.Conn
+}
+
+//func NewCli(opts ...Option) (*NatCli, error) {
+//	var c, err = newConn(opts...)
+//	if err != nil {
+//		return nil, err
+//	}
+//	return &NatCli{c: c}, nil
+//}

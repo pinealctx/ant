@@ -1,0 +1,96 @@
+package natc
+
+import (
+	"context"
+	"github.com/nats-io/nats.go"
+)
+
+type optionT struct {
+	url string
+}
+
+type Option func(o *optionT)
+
+func WithURL(url string) Option {
+	return func(o *optionT) {
+		o.url = url
+	}
+}
+
+func defaultOption() *optionT {
+	return &optionT{url: nats.DefaultURL}
+}
+
+type Conn struct {
+	nc      *nats.Conn
+	closeCh chan struct{}
+}
+
+func NewConn(opts ...Option) (*Conn, error) {
+	var o = defaultOption()
+	for _, opt := range opts {
+		opt(o)
+	}
+	var ch = make(chan struct{})
+	var c, err = nats.Connect(o.url, nats.NoEcho(), nats.MaxReconnects(-1), nats.ClosedHandler(
+		func(*nats.Conn) {
+			close(ch)
+		}))
+	if err != nil {
+		return nil, err
+	}
+	return &Conn{nc: c, closeCh: ch}, nil
+}
+
+func (c *Conn) Request(ctx context.Context, subj string, data []byte) ([]byte, error) {
+	var msg, err = c.nc.RequestWithContext(ctx, subj, data)
+	if err != nil {
+		return nil, err
+	}
+	return msg.Data, nil
+}
+
+func (c *Conn) Publish(subj string, data []byte) error {
+	return c.nc.Publish(subj, data)
+}
+
+/*
+func (c *Conn) RequestProtoMsg(ctx context.Context, subj string, in proto.Message, out proto.Message) error {
+	var data, err = proto.Marshal(in)
+	if err != nil {
+		return err
+	}
+	var msg *nats.Msg
+	msg, err = c.nc.RequestWithContext(ctx, subj, data)
+	if err != nil {
+		return err
+	}
+	return proto.Unmarshal(msg.Data, out)
+}
+
+func (c *Conn) PublishProtoMsg(subj string, in proto.Message) error {
+	var data, err = proto.Marshal(in)
+	if err != nil {
+		return err
+	}
+	return c.nc.Publish(subj, data)
+}
+*/
+
+func (c *Conn) StartConsume(subj string, fn func(_subj string, data []byte)) error {
+	var handler = func(msg *nats.Msg) {
+		fn(msg.Subject, msg.Data)
+	}
+	var _, err = c.nc.Subscribe(subj, handler)
+	return err
+}
+
+func (c *Conn) Quit() error {
+	var err = c.nc.Drain()
+	if err != nil {
+		return err
+	}
+	//wait close
+	<-c.closeCh
+	return nil
+}
