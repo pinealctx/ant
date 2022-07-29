@@ -2,13 +2,11 @@ package na
 
 import (
 	"context"
-	"fmt"
 	"github.com/pinealctx/ant/example/pb"
+	"github.com/pinealctx/ant/pkg/fp"
 	"github.com/pinealctx/neptune/ulog"
 	"github.com/urfave/cli/v2"
 	"go.uber.org/zap"
-	"sync"
-	"time"
 )
 
 var (
@@ -43,38 +41,18 @@ var (
 
 var (
 	sharedReq      = &pb.Hello{Halo: "halo"}
-	shareNatsFlags = []cli.Flag{
-		&cli.StringFlag{
-			Name:  "url",
-			Usage: "nats server url",
-			Value: "nats://127.0.0.1:4222",
-		},
-		&cli.BoolFlag{
-			Name:  "async",
-			Usage: "set async go routine or not",
-		},
-		&cli.IntFlag{
-			Name:  "count",
-			Usage: "call count",
-			Value: 100000,
-		},
-		&cli.BoolFlag{
-			Name:  "ctx",
-			Usage: "inherit context or not",
-		},
-		&cli.DurationFlag{
-			Name:  "tc",
-			Usage: "rpc timeout",
-			Value: time.Second * 6,
-		},
-	}
+	shareNatsFlags = append(fp.FlowFlags, &cli.StringFlag{
+		Name:  "url",
+		Usage: "nats server url",
+		Value: "nats://127.0.0.1:4222",
+	})
 )
 
 func runEcho(c *cli.Context) error {
 	var fn = func(ctx context.Context, nc *pb.ExampleNatsClient) {
-		var _, err = nc.Echo(ctx, sharedReq)
-		if err != nil {
-			ulog.Error("echo.error", zap.Error(err))
+		var _, e = nc.Echo(ctx, sharedReq)
+		if e != nil {
+			ulog.Error("echo.error", zap.Error(e))
 		}
 	}
 	return runHandler(c, fn)
@@ -82,9 +60,9 @@ func runEcho(c *cli.Context) error {
 
 func runProc(c *cli.Context) error {
 	var fn = func(ctx context.Context, nc *pb.ExampleNatsClient) {
-		var err = nc.Proc(ctx, sharedReq)
-		if err != nil {
-			ulog.Error("proc.error", zap.Error(err))
+		var e = nc.Proc(ctx, sharedReq)
+		if e != nil {
+			ulog.Error("proc.error", zap.Error(e))
 		}
 	}
 	return runHandler(c, fn)
@@ -92,9 +70,9 @@ func runProc(c *cli.Context) error {
 
 func runGet(c *cli.Context) error {
 	var fn = func(ctx context.Context, nc *pb.ExampleNatsClient) {
-		var _, err = nc.Get(ctx)
-		if err != nil {
-			ulog.Error("get.error", zap.Error(err))
+		var _, e = nc.Get(ctx)
+		if e != nil {
+			ulog.Error("get.error", zap.Error(e))
 		}
 	}
 	return runHandler(c, fn)
@@ -102,78 +80,29 @@ func runGet(c *cli.Context) error {
 
 func runTouch(c *cli.Context) error {
 	var fn = func(ctx context.Context, nc *pb.ExampleNatsClient) {
-		var err = nc.Touch(ctx)
-		if err != nil {
-			ulog.Error("touch.error", zap.Error(err))
+		var e = nc.Touch(ctx)
+		if e != nil {
+			ulog.Error("touch.error", zap.Error(e))
 		}
 	}
 	return runHandler(c, fn)
 }
 
 func runHandler(c *cli.Context, fn func(context.Context, *pb.ExampleNatsClient)) error {
-	var cc, err = setCli(c)
+	var nc, err = setCli(c)
 	if err != nil {
 		return err
 	}
-	ulog.Info("timeout setting", zap.String("tc", fmt.Sprintf("%+v", cc.timeout)))
-	var ctx, cancel = context.WithTimeout(context.Background(), time.Minute*30)
-	defer cancel()
-
-	if cc.async {
-		var wg sync.WaitGroup
-		wg.Add(cc.count)
-		var ta = time.Now()
-		for i := 0; i < cc.count; i++ {
-			go func() {
-				defer wg.Done()
-				var selfCtx context.Context
-				if cc.inheritCtx {
-					var selfCancel context.CancelFunc
-					selfCtx, selfCancel = context.WithTimeout(ctx, cc.timeout)
-					defer selfCancel()
-				} else {
-					selfCtx = ctx
-				}
-				fn(selfCtx, cc.nc)
-			}()
-		}
-		wg.Wait()
-		var tb = time.Now()
-		var diff = tb.Sub(ta)
-		ulog.Info("async use time", zap.String("total", fmt.Sprintf("%+v", diff)),
-			zap.String("average", fmt.Sprintf("%+v", diff/time.Duration(cc.count))))
-	} else {
-		var ta = time.Now()
-		for i := 0; i < cc.count; i++ {
-			fn(ctx, cc.nc)
-		}
-		var tb = time.Now()
-		var diff = tb.Sub(ta)
-		ulog.Info("sync use time", zap.String("total", fmt.Sprintf("%+v", diff)),
-			zap.String("average", fmt.Sprintf("%+v", diff/time.Duration(cc.count))))
+	var ffn = func(ctx context.Context) {
+		fn(ctx, nc)
 	}
-	return nil
+	return fp.ParseFromCtx(c).Run(ffn)
 }
 
-type cliSetT struct {
-	nc         *pb.ExampleNatsClient
-	count      int
-	async      bool
-	inheritCtx bool
-	timeout    time.Duration
-}
-
-func setCli(c *cli.Context) (*cliSetT, error) {
+func setCli(c *cli.Context) (*pb.ExampleNatsClient, error) {
 	var conn, err = connectNats(c)
 	if err != nil {
 		return nil, err
 	}
-	var cc = pb.NewExampleNatsClient(conn)
-	return &cliSetT{
-		nc:         cc,
-		count:      c.Int("count"),
-		async:      c.Bool("async"),
-		inheritCtx: c.Bool("ctx"),
-		timeout:    c.Duration("tc"),
-	}, nil
+	return pb.NewExampleNatsClient(conn), nil
 }
