@@ -1,0 +1,14 @@
+syntax = "proto3";
+package pb;
+
+option go_package = "github.com/pinealctx/ant/test/get/pb";
+
+import "google/protobuf/empty.proto";
+
+message Hello {
+  string halo = 1;
+}
+
+service Example {
+  rpc Get(google.protobuf.Empty) returns(Hello);
+}

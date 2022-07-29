@@ -1,0 +1,22 @@
+syntax = "proto3";
+package pb;
+
+option go_package = "github.com/pinealctx/ant/test/full/pb";
+
+import "google/protobuf/empty.proto";
+
+message Hello {
+  string halo = 1;
+}
+
+service Example {
+  // echo request back
+  // input string output same back
+  rpc Echo(Hello) returns (Hello);
+  // send a request just receive such as ACK that other side got it
+  rpc Proc(Hello) returns(google.protobuf.Empty);
+  // send an empty request but other side know what should be response back
+  rpc Get(google.protobuf.Empty) returns(Hello);
+  // touch like ack <--> reply ack
+  rpc Touch(google.protobuf.Empty) returns(google.protobuf.Empty);
+}

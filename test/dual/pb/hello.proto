@@ -1,0 +1,18 @@
+syntax = "proto3";
+package pb;
+
+option go_package = "github.com/pinealctx/ant/test/dual/pb";
+
+message Hello {
+  string halo = 1;
+}
+
+message Tip {
+  string halo = 1;
+}
+
+service Example {
+  // echo request back
+  // input string output same back
+  rpc Echo(Hello) returns (Hello);
+}

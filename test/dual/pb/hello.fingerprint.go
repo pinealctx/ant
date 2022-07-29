@@ -9,13 +9,20 @@ import (
 const (
 	// FpPbHello crc32.ChecksumIEEE([]byte("pb.Hello")) -653391380
 	FpPbHello = uint32(0xd90e09ec)
+	// FpPbTip crc32.ChecksumIEEE([]byte("pb.Tip")) -1771014148
+	FpPbTip = uint32(0x967077fc)
 )
 
 func (*Hello) Fingerprint() uint32 {
 	return FpPbHello
 }
 
+func (*Tip) Fingerprint() uint32 {
+	return FpPbTip
+}
+
 // init function to register generated proto message generator functions
 func init() {
 	mpb.RegisterGenerator(func() proto.Message { return &Hello{} })
+	mpb.RegisterGenerator(func() proto.Message { return &Tip{} })
 }
